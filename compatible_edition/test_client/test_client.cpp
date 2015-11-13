@@ -8,6 +8,8 @@
 #define SERVER_PORT		9528
 //#define REUSE_OBJECT //use objects pool
 //#define FORCE_TO_USE_MSG_RECV_BUFFER //force to use the msg recv buffer
+//#define AUTO_CLEAR_CLOSED_SOCKET
+//#define CLEAR_CLOSED_SOCKET_INTERVAL	1
 //configuration
 
 //use the following macro to control the type of packer and unpacker
@@ -113,6 +115,15 @@ public:
 
 	void close_some_client(size_t n)
 	{
+#ifdef AUTO_CLEAR_CLOSED_SOCKET
+		//method #1
+		for (BOOST_AUTO(iter, object_can.begin()); n-- > 0 && iter != object_can.end(); ++iter)
+			(*iter)->graceful_close();
+		//notice: this method need to define AUTO_CLEAR_CLOSED_SOCKET and CLEAR_CLOSED_SOCKET_INTERVAL macro, because it just close the st_socket,
+		//not really remove them from object pool, this will cause test_client still send data via them, and wait responses from them.
+		//for this scenario, the smaller CLEAR_CLOSED_SOCKET_INTERVAL macro is, the better experience you will get, so set it to 1 second.
+#else
+		//method #2
 		while (n-- > 0)
 			graceful_close(at(0));
 //			graceful_close(at(0), false, false);
@@ -124,6 +135,7 @@ public:
 //			graceful_close(at(n), true); //if parameter 'reconnect' is true, st_tcp_client will not remove clients from object pool
 //			graceful_close(at(n), true, false);
 //			force_close(at(n), true);
+#endif
 	}
 
 	///////////////////////////////////////////////////
@@ -159,7 +171,12 @@ int main(int argc, const char* argv[])
 	else if (argc > 1)
 		client.do_something_to_all(boost::bind(&test_socket::set_server_addr, _1, atoi(argv[1]), SERVER_IP));
 
-	service_pump.start_service(1);
+	int min_thread_num = 1;
+#ifdef AUTO_CLEAR_CLOSED_SOCKET
+	++min_thread_num;
+#endif
+
+	service_pump.start_service(min_thread_num);
 	while(service_pump.is_running())
 	{
 		std::string str;
@@ -169,7 +186,7 @@ int main(int argc, const char* argv[])
 		else if (str == RESTART_COMMAND)
 		{
 			service_pump.stop_service();
-			service_pump.start_service(1);
+			service_pump.start_service(min_thread_num);
 		}
 		else if (str == LIST_STATUS)
 			printf("valid links: " size_t_format ", closed links: " size_t_format "\n", client.valid_size(), client.closed_object_size());
@@ -202,6 +219,10 @@ int main(int argc, const char* argv[])
 				continue;
 			}
 
+#ifdef AUTO_CLEAR_CLOSED_SOCKET
+			link_num = client.size();
+			printf("link number: " size_t_format "\n", link_num);
+#endif
 			size_t msg_num = 1024;
 			size_t msg_len = 1024; //must greater than or equal to sizeof(size_t)
 			char msg_fill = '0';
@@ -299,6 +320,8 @@ int main(int argc, const char* argv[])
 #undef SERVER_PORT
 #undef REUSE_OBJECT
 #undef FORCE_TO_USE_MSG_RECV_BUFFER
+#undef AUTO_CLEAR_CLOSED_SOCKET
+#undef CLEAR_CLOSED_SOCKET_INTERVA
 #undef DEFAULT_PACKER
 #undef DEFAULT_UNPACKER
 //restore configuration

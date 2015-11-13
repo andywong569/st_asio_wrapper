@@ -168,7 +168,7 @@ int main(int argc, const char* argv[])
 	else if (argc > 1)
 		client.do_something_to_all([argv](test_client::object_ctype& item) {item->set_server_addr(atoi(argv[1]), SERVER_IP);});
 
-	int min_thread_num = 1;
+	auto min_thread_num = 1;
 #ifdef AUTO_CLEAR_CLOSED_SOCKET
 	++min_thread_num;
 #endif
@@ -218,11 +218,11 @@ int main(int argc, const char* argv[])
 
 #ifdef AUTO_CLEAR_CLOSED_SOCKET
 			link_num = client.size();
-			printf("link number: %d\n", link_num);
+			printf("link number: " size_t_format "\n", link_num);
 #endif
 			size_t msg_num = 1024;
 			size_t msg_len = 1024; //must greater than or equal to sizeof(size_t)
-			char msg_fill = '0';
+			auto msg_fill = '0';
 			char model = 0; //0 broadcast, 1 randomly pick one link per msg
 
 			boost::char_separator<char> sep(" \t");
