@@ -115,27 +115,31 @@ public:
 
 	void close_some_client(size_t n)
 	{
-#ifdef AUTO_CLEAR_CLOSED_SOCKET
-		//method #1
-		for (BOOST_AUTO(iter, object_can.begin()); n-- > 0 && iter != object_can.end(); ++iter)
-			(*iter)->graceful_close();
-		//notice: this method need to define AUTO_CLEAR_CLOSED_SOCKET and CLEAR_CLOSED_SOCKET_INTERVAL macro, because it just close the st_socket,
-		//not really remove them from object pool, this will cause test_client still send data via them, and wait responses from them.
-		//for this scenario, the smaller CLEAR_CLOSED_SOCKET_INTERVAL macro is, the better experience you will get, so set it to 1 second.
-#else
-		//method #2
-		while (n-- > 0)
-			graceful_close(at(0));
-//			graceful_close(at(0), false, false);
-//			force_close(at(0));
-		//this is a equivalence of calling i_server::del_client in st_server_socket_base::on_recv_error(see st_server_socket_base for more details).
+		static int test_index = -1;
+		++test_index;
 
-		//if you just want to reconnect to the server, you should do it like this:
-//		while (n-- > 0)
-//			graceful_close(at(n), true); //if parameter 'reconnect' is true, st_tcp_client will not remove clients from object pool
-//			graceful_close(at(n), true, false);
-//			force_close(at(n), true);
+		switch (test_index % 6)
+		{
+#ifdef AUTO_CLEAR_CLOSED_SOCKET
+			//method #1
+			//notice: these methods need to define AUTO_CLEAR_CLOSED_SOCKET and CLEAR_CLOSED_SOCKET_INTERVAL macro, because it just close the st_socket,
+			//not really remove them from object pool, this will cause test_client still send data via them, and wait responses from them.
+			//for this scenario, the smaller CLEAR_CLOSED_SOCKET_INTERVAL macro is, the better experience you will get, so set it to 1 second.
+		case 0: for (BOOST_AUTO(iter, object_can.begin()); n-- > 0 && iter != object_can.end(); ++iter) (*iter)->graceful_close();				break;
+		case 1: for (BOOST_AUTO(iter, object_can.begin()); n-- > 0 && iter != object_can.end(); ++iter) (*iter)->graceful_close(false, false);	break;
+		case 2: for (BOOST_AUTO(iter, object_can.begin()); n-- > 0 && iter != object_can.end(); ++iter) (*iter)->force_close();					break;
+#else
+			//method #2
+			//this is a equivalence of calling i_server::del_client in st_server_socket_base::on_recv_error(see st_server_socket_base for more details).
+		case 0: while (n-- > 0) graceful_close(at(0));			break;
+		case 1: while (n-- > 0) graceful_close(at(0), false);	break;
+		case 2: while (n-- > 0) force_close(at(0));				break;
 #endif
+			//if you just want to reconnect to the server, you should do it like this:
+		case 3: for (BOOST_AUTO(iter, object_can.begin()); n-- > 0 && iter != object_can.end(); ++iter) (*iter)->graceful_close(true);			break;
+		case 4: for (BOOST_AUTO(iter, object_can.begin()); n-- > 0 && iter != object_can.end(); ++iter) (*iter)->graceful_close(true, false);	break;
+		case 5: for (BOOST_AUTO(iter, object_can.begin()); n-- > 0 && iter != object_can.end(); ++iter) (*iter)->force_close(true);				break;
+		}
 	}
 
 	///////////////////////////////////////////////////
